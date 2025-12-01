@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Stove Flake Automation Script
 // @namespace    https://github.com/TellurideX/Stove-Flake-Automation-Script-Tampermonkey
-// @version      1.2.2
+// @version      1.2.3
 // @description  스토브 플레이크 샵 뽑기 자동화 스크립트
 // @author       TellurideX
 // @match        https://reward.onstove.com/ko/event*
@@ -20,16 +20,23 @@
     // 스크립트 버전 & 패치노트 관리
     // ================================
     // ⚠ @version 메타데이터와 반드시 동일하게 유지하세요.
-    const SCRIPT_VERSION = '1.2.2';
+    const SCRIPT_VERSION = '1.2.3';
 
     // 패치내역은 여기만 수정하면 됩니다.
     // 새 버전 배포 시, 맨 위에 항목을 하나 더 추가하세요.
     const PATCH_HISTORY = [
         {
+            version: '1.2.3',
+            title: 'v1.2.3',
+            lines: [
+                '- 버그 픽스'
+            ]
+        },
+        {
             version: '1.2.2',
             title: 'v1.2.2',
             lines: [
-                '- 패치노트 버튼 추가'
+                '- 버그 픽스'
             ]
         },
         {
@@ -913,9 +920,8 @@
         const banner = document.createElement('div');
         banner.id = 'stove-flake-version-banner';
         banner.style.position = 'fixed';
-        // 버튼들이 right:20px 기준이므로, 왼쪽에 보이도록 약간 띄움
-        banner.style.right = '240px';
-        banner.style.bottom = '120px';
+        banner.style.right = '20px';
+        banner.style.bottom = '420px';
         banner.style.width = '260px';
         banner.style.background = 'rgba(0, 0, 0, 0.82)';
         banner.style.color = '#fff';
@@ -933,11 +939,11 @@
 
         if (entry && entry.lines && entry.lines.length > 0) {
             html += '<div style="font-size:11px;line-height:1.4;margin-bottom:4px;">';
-            // 상위 2줄만 요약 표시
-            const summaryLines = entry.lines.slice(0, 2);
-            summaryLines.forEach(function(line) {
+
+            entry.lines.forEach(function(line) {
                 html += escapeHtml(line) + '<br>';
             });
+
             html += '</div>';
         } else {
             html += '<div style="font-size:11px;line-height:1.4;margin-bottom:4px;">' +
@@ -945,8 +951,7 @@
                 '</div>';
         }
 
-        html += '<div style="font-size:10px;opacity:0.8;">(어디든 클릭하면 닫힙니다. 전체 내용은 "패치노트 보기" 버튼에서 확인 가능)</div>';
-
+        html += '<div style="font-size:10px;opacity:0.8;">(창을 클릭하면 닫힙니다.)</div>';
         banner.innerHTML = html;
 
         // 아무 곳이나 클릭하면 종료
@@ -960,6 +965,7 @@
 
         document.body.appendChild(banner);
     }
+
 
     // ================================
     // 자동화 시작 / 중단
@@ -1182,7 +1188,7 @@
         // ✅ 패치노트 버튼 (초록색)
         createButtonWithTooltip({
             id: 'stove-patch-notes',
-            label: '패치노트 보기',
+            label: '패치노트',
             bottom: 20,
             background: '#2f9e44',
             onClick: openPatchNotesModal,
