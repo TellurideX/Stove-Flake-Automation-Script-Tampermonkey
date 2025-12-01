@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Stove Flake Automation Script
 // @namespace    https://github.com/TellurideX/Stove-Flake-Automation-Script-Tampermonkey
-// @version      1.2.1
+// @version      1.2.2
 // @description  스토브 플레이크 샵 뽑기 자동화 스크립트
 // @author       TellurideX
 // @match        https://reward.onstove.com/ko/event*
@@ -17,27 +17,35 @@
     'use strict';
 
     // ================================
-    // 자동화 상태
+    // 스크립트 버전 & 패치노트 관리
     // ================================
-    let isAuto100Running = false;
-    let isAuto1000Running = false;
+    // ⚠ @version 메타데이터와 반드시 동일하게 유지하세요.
+    const SCRIPT_VERSION = '1.2.1';
 
-    let auto100Timer = null;
-    let auto1000Timer = null;
+    // 패치내역은 여기만 수정하면 됩니다.
+    // 새 버전 배포 시, 맨 위에 항목을 하나 더 추가하세요.
+    const PATCH_HISTORY = [
+        {
+            version: '1.2.1',
+            title: 'v1.2.1 (예시)',
+            lines: [
+                '- 100 뽑기 / 1,000 뽑기 사용 횟수 통계 표시',
+                '- 플레이크 순이익(실제 획득) 계산 추가',
+                '- 종합 보상 UI 개선 및 스크롤 자동 하단 이동',
+                '- 깃허브 자동 업데이트 연동 준비'
+            ]
+        },
+        {
+            version: '1.2.0',
+            title: 'v1.2.0 (예시)',
+            lines: [
+                '- Stove Flake Automation Script 최초 공개 버전'
+            ]
+        }
+    ];
 
-    let remainingDraws = null; // 오늘 남은 뽑기 횟수 (자동 실행용)
+    const VERSION_STORAGE_KEY = 'stove_flake_last_version_seen';
 
-    // ================================
-    // 계정별 보상 기록 상태 (하루 단위)
-    // ================================
-    const BASE_STORAGE_KEY_REWARD = 'stove_flake_reward_v1';
-
-    let rewardState = null;
-    let currentAccountId = null;
-
-    // ================================
-    // GM_* 래퍼
-    // ================================
     function gmGet(key, defaultValue) {
         try {
             if (typeof GM_getValue === 'function') {
@@ -58,6 +66,34 @@
             console.log('[GM] GM_setValue 오류', e);
         }
     }
+
+    function getCurrentPatchEntry() {
+        for (let i = 0; i < PATCH_HISTORY.length; i += 1) {
+            if (PATCH_HISTORY[i].version === SCRIPT_VERSION) {
+                return PATCH_HISTORY[i];
+            }
+        }
+        return null;
+    }
+
+    // ================================
+    // 자동화 상태
+    // ================================
+    let isAuto100Running = false;
+    let isAuto1000Running = false;
+
+    let auto100Timer = null;
+    let auto1000Timer = null;
+
+    let remainingDraws = null; // 오늘 남은 뽑기 횟수 (자동 실행용)
+
+    // ================================
+    // 계정별 보상 기록 상태 (하루 단위)
+    // ================================
+    const BASE_STORAGE_KEY_REWARD = 'stove_flake_reward_v1';
+
+    let rewardState = null;
+    let currentAccountId = null;
 
     function getRewardStorageKey() {
         if (!currentAccountId) {
@@ -326,14 +362,14 @@
 
         html += '</div>'; // 로그 박스 닫기
 
-        // ★ 종합 보상 계산 (플레이크 순이익 포함)
+        // 종합 보상 계산 (플레이크 순이익 포함)
         const totalRewardFlake = rewardState.flakeTotal || 0;
         const drawCount100 = rewardState.drawCount100 || 0;
         const drawCount1000 = rewardState.drawCount1000 || 0;
         const consumedFlake = drawCount100 * 100 + drawCount1000 * 1000;
         const netFlake = totalRewardFlake - consumedFlake;
 
-        // ★ 종합 보상 제목에 뽑기 횟수 표시
+        // 종합 보상 제목에 뽑기 횟수 표시
         html += '<div style="font-weight:bold;margin:6px 0 4px;font-size:12px;">' +
             '종합 보상 (100 뽑기 : ' + drawCount100 + '회 // 1,000 뽑기 : ' + drawCount1000 + '회)' +
             '</div>';
@@ -729,6 +765,198 @@
     }
 
     // ================================
+    // 패치노트 모달 UI
+    // ================================
+    function openPatchNotesModal() {
+        if (document.getElementById('stove-flake-patch-overlay')) {
+            return;
+        }
+
+        const overlay = document.createElement('div');
+        overlay.id = 'stove-flake-patch-overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.left = '0';
+        overlay.style.top = '0';
+        overlay.style.right = '0';
+        overlay.style.bottom = '0';
+        overlay.style.background = 'rgba(0, 0, 0, 0.55)';
+        overlay.style.backdropFilter = 'blur(2px)';
+        overlay.style.zIndex = '1000000';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+
+        const modal = document.createElement('div');
+        modal.style.background = 'rgba(15, 15, 15, 0.95)';
+        modal.style.color = '#ffffff';
+        modal.style.borderRadius = '10px';
+        modal.style.padding = '14px 16px 12px 16px';
+        modal.style.width = '480px';
+        modal.style.maxHeight = '70vh';
+        modal.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.6)';
+        modal.style.display = 'flex';
+        modal.style.flexDirection = 'column';
+        modal.style.fontSize = '13px';
+
+        const header = document.createElement('div');
+        header.textContent = 'Stove Flake Automation 패치 노트 (v' + SCRIPT_VERSION + ')';
+        header.style.fontWeight = 'bold';
+        header.style.marginBottom = '8px';
+        header.style.fontSize = '14px';
+
+        const content = document.createElement('div');
+        content.style.flex = '1';
+        content.style.overflowY = 'auto';
+        content.style.paddingRight = '4px';
+
+        // 패치내역 전체 렌더링
+        PATCH_HISTORY.forEach(function(entry) {
+            const section = document.createElement('div');
+            section.style.marginBottom = '10px';
+
+            const title = document.createElement('div');
+            title.textContent = entry.title || ('v' + entry.version);
+            title.style.fontWeight = 'bold';
+            title.style.marginBottom = '4px';
+            title.style.fontSize = '13px';
+
+            section.appendChild(title);
+
+            if (entry.lines && entry.lines.length > 0) {
+                const ul = document.createElement('ul');
+                ul.style.paddingLeft = '18px';
+                ul.style.margin = '0';
+
+                entry.lines.forEach(function(line) {
+                    const li = document.createElement('li');
+                    li.textContent = line;
+                    li.style.marginBottom = '2px';
+                    ul.appendChild(li);
+                });
+
+                section.appendChild(ul);
+            }
+
+            content.appendChild(section);
+        });
+
+        const footer = document.createElement('div');
+        footer.style.display = 'flex';
+        footer.style.justifyContent = 'flex-end';
+        footer.style.marginTop = '8px';
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '닫기';
+        closeBtn.style.padding = '6px 12px';
+        closeBtn.style.borderRadius = '6px';
+        closeBtn.style.border = 'none';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.fontSize = '12px';
+        closeBtn.style.background = '#555';
+        closeBtn.style.color = '#fff';
+
+        closeBtn.addEventListener('mouseenter', function() {
+            closeBtn.style.background = '#666';
+        });
+        closeBtn.addEventListener('mouseleave', function() {
+            closeBtn.style.background = '#555';
+        });
+        closeBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            closePatchNotesModal();
+        });
+
+        footer.appendChild(closeBtn);
+
+        modal.appendChild(header);
+        modal.appendChild(content);
+        modal.appendChild(footer);
+
+        // 오버레이 클릭 시 모달 닫기 (모달 내부 클릭은 전파 차단)
+        modal.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+        overlay.addEventListener('click', function() {
+            closePatchNotesModal();
+        });
+
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+    }
+
+    function closePatchNotesModal() {
+        const overlay = document.getElementById('stove-flake-patch-overlay');
+        if (overlay && overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
+        }
+    }
+
+    // ================================
+    // 버전 최초 1회만 보여주는 작은 팝업
+    // ================================
+    function showVersionBannerIfNeeded() {
+        const lastSeen = gmGet(VERSION_STORAGE_KEY, null);
+        if (lastSeen === SCRIPT_VERSION) {
+            return;
+        }
+
+        // 현재 버전으로 갱신 (이후 재접속 시에는 다시 뜨지 않음)
+        gmSet(VERSION_STORAGE_KEY, SCRIPT_VERSION);
+
+        const entry = getCurrentPatchEntry();
+
+        const banner = document.createElement('div');
+        banner.id = 'stove-flake-version-banner';
+        banner.style.position = 'fixed';
+        // 버튼들이 right:20px 기준이므로, 왼쪽에 보이도록 약간 띄움
+        banner.style.right = '240px';
+        banner.style.bottom = '120px';
+        banner.style.width = '260px';
+        banner.style.background = 'rgba(0, 0, 0, 0.82)';
+        banner.style.color = '#fff';
+        banner.style.borderRadius = '8px';
+        banner.style.padding = '8px 10px';
+        banner.style.fontSize = '12px';
+        banner.style.zIndex = '999999';
+        banner.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.5)';
+        banner.style.cursor = 'pointer';
+        banner.style.backdropFilter = 'blur(4px)';
+
+        let html = '';
+        html += '<div style="font-weight:bold;margin-bottom:4px;">Stove Flake 패치 안내 (v' +
+            SCRIPT_VERSION + ')</div>';
+
+        if (entry && entry.lines && entry.lines.length > 0) {
+            html += '<div style="font-size:11px;line-height:1.4;margin-bottom:4px;">';
+            // 상위 2줄만 요약 표시
+            const summaryLines = entry.lines.slice(0, 2);
+            summaryLines.forEach(function(line) {
+                html += escapeHtml(line) + '<br>';
+            });
+            html += '</div>';
+        } else {
+            html += '<div style="font-size:11px;line-height:1.4;margin-bottom:4px;">' +
+                '새 버전이 적용되었습니다.' +
+                '</div>';
+        }
+
+        html += '<div style="font-size:10px;opacity:0.8;">(어디든 클릭하면 닫힙니다. 전체 내용은 "패치노트 보기" 버튼에서 확인 가능)</div>';
+
+        banner.innerHTML = html;
+
+        // 아무 곳이나 클릭하면 종료
+        banner.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const el = document.getElementById('stove-flake-version-banner');
+            if (el && el.parentNode) {
+                el.parentNode.removeChild(el);
+            }
+        });
+
+        document.body.appendChild(banner);
+    }
+
+    // ================================
     // 자동화 시작 / 중단
     // ================================
     function startAuto100() {
@@ -918,10 +1146,11 @@
     }
 
     function initUIButtons() {
+        // 버튼 위치를 조금 위로 올려서 패치노트 버튼을 맨 아래에 배치
         createButtonWithTooltip({
             id: 'stove-auto-100',
             label: '100 뽑기 자동화 시작하기',
-            bottom: 100,
+            bottom: 140,
             background: '#ff6b00',
             onClick: startAuto100,
             tooltip: '오늘 뽑기 남은 횟수만큼 100 뽑기를 자동으로 진행합니다.'
@@ -930,7 +1159,7 @@
         createButtonWithTooltip({
             id: 'stove-auto-1000',
             label: '1,000 뽑기 자동화 시작하기',
-            bottom: 60,
+            bottom: 100,
             background: '#ff6b00',
             onClick: startAuto1000,
             tooltip: '오늘 뽑기 남은 횟수만큼 1,000 뽑기를 자동으로 진행합니다.'
@@ -939,10 +1168,20 @@
         createButtonWithTooltip({
             id: 'stove-auto-stop',
             label: '중단하기',
-            bottom: 20,
+            bottom: 60,
             background: '#d62828',
             onClick: stopAutomation,
             tooltip: '진행 중인 자동화를 중단하고, 팝업이 있다면 닫기 버튼을 누릅니다.'
+        });
+
+        // ✅ 패치노트 버튼 (초록색)
+        createButtonWithTooltip({
+            id: 'stove-patch-notes',
+            label: '패치노트 보기',
+            bottom: 20,
+            background: '#2f9e44',
+            onClick: openPatchNotesModal,
+            tooltip: '버전별 패치 내역을 확인합니다.'
         });
     }
 
@@ -956,6 +1195,8 @@
             renderRewardPanel();
             setupPopupObserver();
             scanAllRewardPanels();
+            // 버전 최초 1회 팝업
+            showVersionBannerIfNeeded();
         });
     }
 
