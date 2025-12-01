@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Stove Flake Automation Script
 // @namespace    https://github.com/TellurideX/Stove-Flake-Automation-Script-Tampermonkey
-// @version      1.2.0
+// @version      1.2.1
 // @description  스토브 플레이크 샵 뽑기 자동화 스크립트
 // @author       TellurideX
 // @match        https://reward.onstove.com/ko/event*
