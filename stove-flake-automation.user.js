@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Stove Flake Automation Script
 // @namespace    https://github.com/TellurideX/Stove-Flake-Automation-Script-Tampermonkey
-// @version      1.2.3
+// @version      1.2.4
 // @description  스토브 플레이크 샵 뽑기 자동화 스크립트
 // @author       TellurideX
 // @match        https://reward.onstove.com/ko/event*
@@ -20,11 +20,18 @@
     // 스크립트 버전 & 패치노트 관리
     // ================================
     // ⚠ @version 메타데이터와 반드시 동일하게 유지하세요.
-    const SCRIPT_VERSION = '1.2.3';
+    const SCRIPT_VERSION = '1.2.4';
 
     // 패치내역은 여기만 수정하면 됩니다.
     // 새 버전 배포 시, 맨 위에 항목을 하나 더 추가하세요.
     const PATCH_HISTORY = [
+                {
+            version: '1.2.4',
+            title: 'v1.2.4',
+            lines: [
+                '- 2월 25일 이후 16스택 이후 멈추는 현상 수정 (타이머 조정)'
+            ]
+        },
         {
             version: '1.2.3',
             title: 'v1.2.3',
@@ -685,7 +692,7 @@
                 return;
             }
 
-            auto100Timer = window.setTimeout(loop100, 900);
+            auto100Timer = window.setTimeout(loop100, 1300);
             return;
         }
 
@@ -745,7 +752,7 @@
                 return;
             }
 
-            auto1000Timer = window.setTimeout(loop1000, 900);
+            auto1000Timer = window.setTimeout(loop1000, 1300);
             return;
         }
 
