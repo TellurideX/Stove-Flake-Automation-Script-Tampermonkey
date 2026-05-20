@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Stove Flake Automation Script
 // @namespace    https://github.com/TellurideX/Stove-Flake-Automation-Script-Tampermonkey
-// @version      1.2.4
+// @version      1.2.5
 // @description  스토브 플레이크 샵 뽑기 자동화 스크립트
 // @author       TellurideX
 // @match        https://reward.onstove.com/ko/event*
@@ -25,6 +25,13 @@
     // 패치내역은 여기만 수정하면 됩니다.
     // 새 버전 배포 시, 맨 위에 항목을 하나 더 추가하세요.
     const PATCH_HISTORY = [
+                {
+            version: '1.2.5',
+            title: 'v1.2.5',
+            lines: [
+                '- 페이지 구성이 변경되어 닉네임을 불러오지 못하는 문제 개선'
+            ]
+        },
         {
             version: '1.2.4',
             title: 'v1.2.4',
@@ -32,35 +39,6 @@
                 '- 2월 25일 이후 16스택 이후 멈추는 현상 수정 (타이머 조정)'
             ]
         },
-        {
-            version: '1.2.3',
-            title: 'v1.2.3',
-            lines: [
-                '- 버그 픽스'
-            ]
-        },
-        {
-            version: '1.2.2',
-            title: 'v1.2.2',
-            lines: [
-                '- 버그 픽스'
-            ]
-        },
-        {
-            version: '1.2.1',
-            title: 'v1.2.1',
-            lines: [
-                '- 100 뽑기 / 1,000 뽑기 횟수 통계 표시 기능 추가',
-                '- 플레이크 순이익(실제 획득) 추가',
-            ]
-        },
-        {
-            version: '1.0.0',
-            title: 'v1.0.0',
-            lines: [
-                '- Stove Flake Automation Script 최초 공개 버전'
-            ]
-        }
     ];
 
     const VERSION_STORAGE_KEY = 'stove_flake_last_version_seen';
@@ -128,9 +106,8 @@
         const layer = document.getElementById('gnb-userinfo-layer');
         if (!layer) return null;
 
-        const nickSpan = layer.querySelector(
-            'span.stds-text.text-2xl.leading-xl.font-bold'
-        );
+        // 클래스명 특수문자($) 대응 수정본
+        const nickSpan = layer.querySelector('.\\$gnb-user-profile-name');
         if (!nickSpan) return null;
 
         const nick = (nickSpan.textContent || '').trim();
@@ -188,15 +165,24 @@
                 return;
             }
 
+            // 1. 변경된 HTML 구조에 맞춰 닉네임 추출 시도
             const nick = extractNicknameFromUserInfoLayer();
             if (nick) {
                 currentAccountId = nick;
                 console.log('[계정] 메뉴에서 닉네임 읽음 →', currentAccountId);
 
-                const menuRootNow = document.getElementById('gnb-user-menu-button');
-                const triggerBtnNow = menuRootNow ? menuRootNow.querySelector('button') : null;
-                if (triggerBtnNow) {
-                    closeUserInfoLayer(triggerBtnNow);
+                // 닉네임 읽기 성공 후 팝업의 X(닫기) 버튼을 찾아 클릭
+                const layer = document.getElementById('gnb-userinfo-layer');
+                const closeBtn = layer ? layer.querySelector('.\\$gnb-user-info-popup-close') : null;
+                if (closeBtn) {
+                    closeBtn.click();
+                } else {
+                    // 닫기 버튼이 안 보이면 기존 방식(프로필 버튼 다시 누르기) 백업 작동
+                    const menuRootNow = document.getElementById('gnb-user-menu-button');
+                    const triggerBtnNow = menuRootNow ? (document.getElementById('gnb-user-menu-button-target') || menuRootNow.querySelector('button')) : null;
+                    if (triggerBtnNow) {
+                        closeUserInfoLayer(triggerBtnNow);
+                    }
                 }
 
                 window.clearInterval(timer);
@@ -204,28 +190,21 @@
                 return;
             }
 
+            // 2. 프로필 메뉴 버튼 탐색 (새로운 target ID 우선 검색)
             const menuRoot = document.getElementById('gnb-user-menu-button');
-            if (!menuRoot) {
-                if (tries >= maxTries) {
-                    window.clearInterval(timer);
-                    console.log('[계정] gnb-user-menu-button 미등장 → default 사용');
-                    currentAccountId = 'default';
-                    if (callback) callback();
-                }
-                return;
-            }
+            const triggerBtn = document.getElementById('gnb-user-menu-button-target') || (menuRoot ? menuRoot.querySelector('button') : null);
 
-            const triggerBtn = menuRoot.querySelector('button');
             if (!triggerBtn) {
                 if (tries >= maxTries) {
                     window.clearInterval(timer);
-                    console.log('[계정] gnb-user-menu-button 안에 button 없음 → default 사용');
+                    console.log('[계정] 프로필 버튼 미등장 → default 사용');
                     currentAccountId = 'default';
                     if (callback) callback();
                 }
                 return;
             }
 
+            // 3. 프로필 메뉴가 닫혀있다면 클릭해서 열기
             if (!menuClicked) {
                 try {
                     triggerBtn.click();
@@ -240,11 +219,21 @@
                 return;
             }
 
+            // 4. 제한 시간 초과 시 처리
             if (tries >= maxTries) {
                 window.clearInterval(timer);
                 console.log('[계정] 닉네임을 찾지 못함 → default 사용');
                 currentAccountId = 'default';
-                closeUserInfoLayer(triggerBtn);
+
+                // 실패했더라도 열린 팝업은 닫기 시도
+                const layer = document.getElementById('gnb-userinfo-layer');
+                const closeBtn = layer ? layer.querySelector('.\\$gnb-user-info-popup-close') : null;
+                if (closeBtn) {
+                    closeBtn.click();
+                } else if (triggerBtn) {
+                    closeUserInfoLayer(triggerBtn);
+                }
+
                 if (callback) callback();
             }
         }, interval);
