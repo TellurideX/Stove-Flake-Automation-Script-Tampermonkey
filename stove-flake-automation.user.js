@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Stove Flake Automation Script
 // @namespace    https://github.com/TellurideX/Stove-Flake-Automation-Script-Tampermonkey
-// @version      1.2.5
+// @version      1.2.6
 // @description  스토브 플레이크 샵 뽑기 자동화 스크립트
 // @author       TellurideX
 // @match        https://reward.onstove.com/ko/event*
@@ -20,12 +20,19 @@
     // 스크립트 버전 & 패치노트 관리
     // ================================
     // ⚠ @version 메타데이터와 반드시 동일하게 유지하세요.
-    const SCRIPT_VERSION = '1.2.5';
+    const SCRIPT_VERSION = '1.2.6';
 
     // 패치내역은 여기만 수정하면 됩니다.
     // 새 버전 배포 시, 맨 위에 항목을 하나 더 추가하세요.
     const PATCH_HISTORY = [
                 {
+            version: '1.2.6',
+            title: 'v1.2.6',
+            lines: [
+                '- UI 숨기기/펼치기 기능 추가'
+            ]
+        },
+        {
             version: '1.2.5',
             title: 'v1.2.5',
             lines: [
@@ -342,17 +349,29 @@
             panel.style.zIndex = '999999';
             panel.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.4)';
             panel.style.backdropFilter = 'blur(4px)';
+            panel.style.transition = 'bottom 0.3s ease'; // 접힐 때 부드러운 애니메이션을 원할 경우 보완
             document.body.appendChild(panel);
         }
 
         const accountLabel = currentAccountId || 'default';
         let html = '';
 
-        // 제목 + 날짜
-        html += '<div style="font-weight:bold;margin-bottom:2px;font-size:12px;">보상 기록 (계정: ' +
-            escapeHtml(accountLabel) + ')</div>';
+        // [변경 포인트 1] 최소화 상태에 따라 텍스트 및 마우스 오버 툴팁(title) 문구 동적 정의
+        const toggleIcon = window.isStoveUiMinimized ? '➕' : '➖';
+        const tooltipText = window.isStoveUiMinimized ? 'UI 표시하기' : 'UI 숨기기';
+
+        html += '<div style="display:flex; justify-content:space-between; align-items:center; font-weight:bold; margin-bottom:2px; font-size:12px;">';
+        html += '  <span>보상 기록 (계정: ' + escapeHtml(accountLabel) + ')</span>';
+        // 💡여기에 title="' + tooltipText + '" 속성을 추가하여 마우스 오버 시 툴팁이 노출되도록 구현했습니다.
+        html += '  <button id="stove-ui-toggle-btn" title="' + tooltipText + '" style="background:none; border:none; color:#ff9f43; cursor:pointer; font-size:12px; font-weight:bold; padding:0 2px; outline:none;">' + toggleIcon + '</button>';
+        html += '</div>';
+
         html += '<div style="font-weight:normal;margin-bottom:4px;font-size:10px;opacity:0.8;">날짜: ' +
             escapeHtml(rewardState.date) + '</div>';
+
+        // [변경 포인트 2] 최소화 시 본문 내용만 일괄 제어하기 위한 감싸기 div 시작
+        const displayStyle = window.isStoveUiMinimized ? 'none' : 'block';
+        html += '<div id="stove-reward-content-area" style="display:' + displayStyle + ';">';
 
         // 로그 영역 (스크롤 자동 하단 이동용 id)
         html += '<div id="stove-reward-log" style="border:1px solid rgba(255,255,255,0.15);' +
@@ -410,6 +429,7 @@
         }
 
         html += '</div>'; // 종합 보상 박스 닫기
+        html += '</div>'; // [변경 포인트 2] stove-reward-content-area 닫기
 
         // 실제 DOM에 반영
         panel.innerHTML = html;
@@ -418,6 +438,39 @@
         const logBox = document.getElementById('stove-reward-log');
         if (logBox) {
             logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        // [변경 포인트 3] 최소화 버튼 클릭 이벤트 바인딩 및 상태 연동
+        const toggleBtn = document.getElementById('stove-ui-toggle-btn');
+        const contentArea = document.getElementById('stove-reward-content-area');
+
+        if (toggleBtn && contentArea) {
+            toggleBtn.addEventListener('click', function(e) {
+                e.stopPropagation(); // 부모 엘리먼트로의 이벤트 전파 차단
+
+                const isMinimized = contentArea.style.display === 'none';
+                if (isMinimized) {
+                    // 1. 최소화 해제 (펼치기)
+                    contentArea.style.display = 'block';
+                    toggleBtn.textContent = '➖';
+                    toggleBtn.setAttribute('title', 'UI 숨기기'); // 💡 클릭 순간 즉시 툴팁 내용 변경
+                    window.isStoveUiMinimized = false;
+                    setAutomationButtonsVisibility(true);
+
+                    // 패널 위치 원상복구
+                    panel.style.bottom = '180px';
+                } else {
+                    // 2. 최소화 실행 (접기)
+                    contentArea.style.display = 'none';
+                    toggleBtn.textContent = '➕';
+                    toggleBtn.setAttribute('title', 'UI 표시하기'); // 💡 클릭 순간 즉시 툴팁 내용 변경
+                    window.isStoveUiMinimized = true;
+                    setAutomationButtonsVisibility(false);
+
+                    // 접혔을 때는 버튼들이 없으므로 화면 구석으로 더 내려서 공간을 확보
+                    panel.style.bottom = '20px';
+                }
+            });
         }
     }
 
@@ -1189,6 +1242,35 @@
             background: '#2f9e44',
             onClick: openPatchNotesModal,
             tooltip: '버전별 패치 내역을 확인합니다.'
+        });
+
+        // ========================================================
+        // [필수 추가 포인트] 생성된 버튼들에 제어용 공통 이름표(클래스) 부여
+        // ========================================================
+        const btnIds = ['stove-auto-100', 'stove-auto-1000', 'stove-auto-stop', 'stove-patch-notes'];
+        btnIds.forEach(function(id) {
+            const btn = document.getElementById(id);
+            if (btn) {
+                // 한 번 숨겨지면 display가 block이 아니라 기존 속성(flex 등)을 유지해야 할 수 있으므로 클래스만 부여
+                btn.classList.add('stove-automation-action-btn');
+
+                // 만약 사용자가 UI를 숨겨둔 상태에서 새로고침되거나 재렌더링되면 초기 상태를 숨김 처리
+                if (window.isStoveUiMinimized) {
+                    btn.style.display = 'none';
+                }
+            }
+        });
+    }
+
+    // ========================================================
+    // [새로 추가] 최소화 버튼 클릭 시 자동화 버튼들을 일괄 숨김/표시하는 함수
+    // ========================================================
+    function setAutomationButtonsVisibility(visible) {
+        const buttons = document.querySelectorAll('.stove-automation-action-btn');
+        buttons.forEach(function(btn) {
+            if (btn) {
+                btn.style.display = visible ? 'block' : 'none';
+            }
         });
     }
 
